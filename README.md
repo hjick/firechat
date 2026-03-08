@@ -23,6 +23,28 @@ Add real-time chat to any React or React Native app with just a Firebase config.
 npm install firechat-sdk firebase
 ```
 
+## Firebase Project Setup
+
+1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project (or use an existing one)
+2. **Add a Web App**: Project Settings (gear icon) → General → Your apps → Add app → Web (`</>`)
+3. Copy the config values:
+
+```
+apiKey            → Your API key
+authDomain        → your-project.firebaseapp.com
+projectId         → Your project ID
+storageBucket     → your-project.appspot.com
+messagingSenderId → Your sender ID
+appId             → Your app ID
+```
+
+4. **Enable Firestore**: Build → Firestore Database → Create database
+5. **Enable Authentication**: Build → Authentication → Get started → Enable your preferred sign-in method:
+   - For `anonymous` auth type: enable **Anonymous**
+   - For `firebase` auth type: enable **Email/Password**, **Google**, etc.
+   - For `custom-token` auth type: no additional setup needed (uses Firebase Admin SDK on your server)
+6. **(Optional) Enable Realtime Database**: Build → Realtime Database → Create database (required only if `enablePresence: true`)
+
 ## Architecture
 
 ```

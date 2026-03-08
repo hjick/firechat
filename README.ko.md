@@ -23,6 +23,28 @@ Firebase 설정만으로 React / React Native 앱에 실시간 채팅 기능을 
 npm install firechat-sdk firebase
 ```
 
+## Firebase 프로젝트 설정
+
+1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트를 생성하거나 기존 프로젝트를 사용합니다
+2. **웹 앱 추가**: 프로젝트 설정 (톱니바퀴) → 일반 → 내 앱 → 앱 추가 → 웹 (`</>`)
+3. 설정 값을 복사합니다:
+
+```
+apiKey            → API 키
+authDomain        → your-project.firebaseapp.com
+projectId         → 프로젝트 ID
+storageBucket     → your-project.appspot.com
+messagingSenderId → 발신자 ID
+appId             → 앱 ID
+```
+
+4. **Firestore 활성화**: 빌드 → Firestore Database → 데이터베이스 만들기
+5. **Authentication 활성화**: 빌드 → Authentication → 시작하기 → 사용할 로그인 방법 활성화:
+   - `anonymous` 인증 타입: **익명** 활성화
+   - `firebase` 인증 타입: **이메일/비밀번호**, **Google** 등 활성화
+   - `custom-token` 인증 타입: 추가 설정 불필요 (서버에서 Firebase Admin SDK 사용)
+6. **(선택) Realtime Database 활성화**: 빌드 → Realtime Database → 데이터베이스 만들기 (`enablePresence: true` 사용 시에만 필요)
+
 ## 아키텍처
 
 ```
