@@ -44,6 +44,11 @@ appId             → 앱 ID
    - `firebase` 인증 타입: **이메일/비밀번호**, **Google** 등 활성화
    - `custom-token` 인증 타입: 추가 설정 불필요 (서버에서 Firebase Admin SDK 사용)
 6. **(선택) Realtime Database 활성화**: 빌드 → Realtime Database → 데이터베이스 만들기 (`enablePresence: true` 사용 시에만 필요)
+7. **Firestore 인덱스 생성**: 처음 쿼리 실행 시 `The query requires an index` 에러가 발생할 수 있습니다. 에러 메시지에 포함된 링크를 클릭하면 Firebase Console에서 자동으로 필요한 인덱스를 생성할 수 있습니다. 필요한 복합 인덱스:
+
+| 컬렉션 | 필드 | 정렬 |
+|--------|------|------|
+| `{prefix}_rooms` | `memberIds` (배열 포함) + `updatedAt` (내림차순) | 내림차순 |
 
 ## 아키텍처
 

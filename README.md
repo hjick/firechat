@@ -44,6 +44,11 @@ appId             → Your app ID
    - For `firebase` auth type: enable **Email/Password**, **Google**, etc.
    - For `custom-token` auth type: no additional setup needed (uses Firebase Admin SDK on your server)
 6. **(Optional) Enable Realtime Database**: Build → Realtime Database → Create database (required only if `enablePresence: true`)
+7. **Create Firestore Indexes**: The first time you run a query, Firestore may show an error like `The query requires an index`. Click the link in the error message to automatically create the required index in Firebase Console. The following composite indexes are required:
+
+| Collection | Fields | Order |
+|------------|--------|-------|
+| `{prefix}_rooms` | `memberIds` (Array contains) + `updatedAt` (Descending) | Descending |
 
 ## Architecture
 
