@@ -1,0 +1,50 @@
+{
+  "name": "firechat-sdk",
+  "version": "0.1.0",
+  "description": "Easily add chat functionality to any project using Firebase Firestore",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "firebase": ">=10.0.0",
+    "react": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "firebase": "^11.0.0",
+    "react": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0",
+    "tsup": "^8.4.0",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "firebase",
+    "chat",
+    "firestore",
+    "real-time",
+    "messaging",
+    "react",
+    "react-native"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
