@@ -9,6 +9,7 @@ export interface Message {
   type: MessageType;
   text?: string;
   mediaUrl?: string;
+  thumbnailUrl?: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
@@ -26,6 +27,7 @@ export interface SendMessageParams {
   type: MessageType;
   text?: string;
   mediaUrl?: string;
+  thumbnailUrl?: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;

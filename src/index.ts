@@ -6,6 +6,9 @@ export { TypingService } from './core/TypingService';
 export { ReadReceiptService } from './core/ReadReceiptService';
 export { PresenceService } from './core/PresenceService';
 
+// Storage
+export { FirebaseStorageUploader } from './storage/FirebaseStorageUploader';
+
 // React hooks and provider
 export { FireChatProvider } from './hooks/FireChatProvider';
 export { useFireChat } from './hooks/useFireChat';
@@ -23,6 +26,7 @@ export type { ChatRoom, RoomType, RoomMember, MemberRole, LastMessage, CreateRoo
 export type { Message, MessageType, DeliveryStatus, SendMessageParams, MessagePage } from './types/message';
 export type { ChatUser } from './types/user';
 export type { StorageAdapter } from './types/adapter';
+export type { FileUploader, UploadResult, UploadProgress } from './types/uploader';
 
 // Constants
 export { DEFAULT_OPTIONS } from './types/config';

@@ -7,7 +7,7 @@ export default defineConfig([
     dts: true,
     sourcemap: true,
     clean: true,
-    external: ['firebase', 'firebase/firestore', 'firebase/auth', 'firebase/database', 'react'],
+    external: ['firebase', 'firebase/firestore', 'firebase/auth', 'firebase/database', 'firebase/storage', 'react'],
     treeshake: true,
   },
 ]);

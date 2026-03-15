@@ -12,6 +12,7 @@ import type { FireChatConfig, FireChatOptions } from '../types/config';
 import { DEFAULT_OPTIONS } from '../types/config';
 import type { ChatUser } from '../types/user';
 import type { StorageAdapter } from '../types/adapter';
+import type { FileUploader } from '../types/uploader';
 import { RoomService } from './RoomService';
 import { MessageService } from './MessageService';
 import { TypingService } from './TypingService';
@@ -27,6 +28,7 @@ export class FireChat {
   readonly config: FireChatConfig;
   readonly options: Required<FireChatOptions>;
   readonly adapter: StorageAdapter | undefined;
+  readonly uploader: FileUploader | undefined;
 
   readonly rooms: RoomService;
   readonly messages: MessageService;
@@ -42,6 +44,7 @@ export class FireChat {
     this.config = config;
     this.options = { ...DEFAULT_OPTIONS, ...config.options };
     this.adapter = config.adapter;
+    this.uploader = config.uploader;
 
     this.firestore = getFirestore(config.firebaseApp);
     this.auth = getAuth(config.firebaseApp);

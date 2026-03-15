@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import type { FireChat } from './FireChat';
 import type { Message, SendMessageParams, MessagePage } from '../types/message';
+import type { UploadProgress } from '../types/uploader';
 import { messageConverter } from '../utils/converter';
 
 export class MessageService {
@@ -50,6 +51,7 @@ export class MessageService {
       type: params.type,
       text: params.text,
       mediaUrl: params.mediaUrl,
+      thumbnailUrl: params.thumbnailUrl,
       fileName: params.fileName,
       fileSize: params.fileSize,
       mimeType: params.mimeType,
@@ -85,6 +87,110 @@ export class MessageService {
     } catch (error) {
       return { ...message, status: 'failed' as const };
     }
+  }
+
+  /**
+   * Convenience method to send an image message.
+   * If a FileUploader is configured and file is provided, uploads the file first.
+   * Otherwise, requires mediaUrl to be provided.
+   */
+  async sendImage(
+    roomId: string,
+    params: {
+      file?: File | { uri: string; name?: string; type?: string };
+      mediaUrl?: string;
+      thumbnailUrl?: string;
+      fileName?: string;
+      text?: string;
+      metadata?: Record<string, unknown>;
+      onProgress?: (progress: UploadProgress) => void;
+    },
+  ): Promise<Message> {
+    let mediaUrl = params.mediaUrl;
+    let fileName = params.fileName;
+    let fileSize: number | undefined;
+    let mimeType: string | undefined;
+
+    if (params.file && this.firechat.uploader) {
+      const path = `${this.firechat.options.collectionPrefix}/images/${roomId}/${Date.now()}_${fileName ?? 'image'}`;
+      const result = await this.firechat.uploader.upload(
+        params.file,
+        path,
+        params.onProgress,
+      );
+      mediaUrl = result.url;
+      fileSize = result.size;
+      mimeType = result.mimeType;
+      fileName = fileName ?? path.split('/').pop();
+    }
+
+    if (!mediaUrl) {
+      throw new Error(
+        'Either provide mediaUrl or configure a FileUploader and pass file.',
+      );
+    }
+
+    return this.send(roomId, {
+      type: 'image',
+      mediaUrl,
+      thumbnailUrl: params.thumbnailUrl,
+      fileName,
+      fileSize,
+      mimeType,
+      text: params.text,
+      metadata: params.metadata,
+    });
+  }
+
+  /**
+   * Convenience method to send a file message.
+   * If a FileUploader is configured and file is provided, uploads the file first.
+   * Otherwise, requires mediaUrl to be provided.
+   */
+  async sendFile(
+    roomId: string,
+    params: {
+      file?: File | { uri: string; name?: string; type?: string };
+      mediaUrl?: string;
+      fileName?: string;
+      text?: string;
+      metadata?: Record<string, unknown>;
+      onProgress?: (progress: UploadProgress) => void;
+    },
+  ): Promise<Message> {
+    let mediaUrl = params.mediaUrl;
+    let fileName = params.fileName;
+    let fileSize: number | undefined;
+    let mimeType: string | undefined;
+
+    if (params.file && this.firechat.uploader) {
+      const path = `${this.firechat.options.collectionPrefix}/files/${roomId}/${Date.now()}_${fileName ?? 'file'}`;
+      const result = await this.firechat.uploader.upload(
+        params.file,
+        path,
+        params.onProgress,
+      );
+      mediaUrl = result.url;
+      fileSize = result.size;
+      mimeType = result.mimeType;
+      fileName = fileName ?? path.split('/').pop();
+    }
+
+    if (!mediaUrl) {
+      throw new Error(
+        'Either provide mediaUrl or configure a FileUploader and pass file.',
+      );
+    }
+
+    return this.send(roomId, {
+      type: 'file',
+      mediaUrl,
+      fileName,
+      fileSize,
+      mimeType,
+      text: params.text,
+      metadata: params.metadata,
+    });
   }
 
   /**

@@ -1,6 +1,7 @@
 import type { FirebaseApp } from 'firebase/app';
 import type { ChatUser } from './user';
 import type { StorageAdapter } from './adapter';
+import type { FileUploader } from './uploader';
 
 export type AuthConfig =
   | { type: 'firebase' }
@@ -35,6 +36,8 @@ export interface FireChatConfig {
   auth: AuthConfig;
   /** Optional storage adapter for syncing with external databases */
   adapter?: StorageAdapter;
+  /** Optional file uploader for image/file message uploads */
+  uploader?: FileUploader;
   /** Library options */
   options?: FireChatOptions;
 }
