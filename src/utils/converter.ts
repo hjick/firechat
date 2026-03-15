@@ -31,6 +31,7 @@ export const roomConverter: FirestoreDataConverter<ChatRoom> = {
       createdAt: toTimestamp(room.createdAt),
       updatedAt: toTimestamp(room.updatedAt),
       memberIds: room.memberIds,
+      isPublic: room.isPublic ?? false,
       lastMessage: room.lastMessage
         ? {
             text: room.lastMessage.text,
@@ -66,6 +67,7 @@ export const roomConverter: FirestoreDataConverter<ChatRoom> = {
       createdAt: toDate(data.createdAt),
       updatedAt: toDate(data.updatedAt),
       memberIds: data.memberIds ?? [],
+      isPublic: data.isPublic ?? false,
       lastMessage,
       metadata: data.metadata ?? undefined,
     };

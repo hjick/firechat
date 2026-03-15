@@ -10,6 +10,7 @@ export { PresenceService } from './core/PresenceService';
 export { FireChatProvider } from './hooks/FireChatProvider';
 export { useFireChat } from './hooks/useFireChat';
 export { useChatRooms } from './hooks/useChatRooms';
+export { usePublicRooms } from './hooks/usePublicRooms';
 export { useMessages } from './hooks/useMessages';
 export { useRoom } from './hooks/useRoom';
 export { useTypingUsers } from './hooks/useTypingUsers';
@@ -18,7 +19,7 @@ export { usePresence } from './hooks/usePresence';
 
 // Types
 export type { FireChatConfig, FireChatOptions, AuthConfig } from './types/config';
-export type { ChatRoom, RoomType, RoomMember, MemberRole, LastMessage, CreateRoomParams } from './types/room';
+export type { ChatRoom, RoomType, RoomMember, MemberRole, LastMessage, CreateRoomParams, PublicRoomListOptions } from './types/room';
 export type { Message, MessageType, DeliveryStatus, SendMessageParams, MessagePage } from './types/message';
 export type { ChatUser } from './types/user';
 export type { StorageAdapter } from './types/adapter';

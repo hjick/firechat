@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   getDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
   query,
@@ -14,9 +15,11 @@ import {
   arrayRemove,
   Timestamp,
   setDoc,
+  limit as firestoreLimit,
+  startAfter as firestoreStartAfter,
 } from 'firebase/firestore';
 import type { FireChat } from './FireChat';
-import type { ChatRoom, CreateRoomParams, RoomMember } from '../types/room';
+import type { ChatRoom, CreateRoomParams, RoomMember, PublicRoomListOptions } from '../types/room';
 import { roomConverter, memberConverter } from '../utils/converter';
 
 export class RoomService {
@@ -43,6 +46,10 @@ export class RoomService {
     const currentUser = this.firechat.getCurrentUser();
     const now = new Date();
 
+    if (params.type === 'direct' && params.isPublic) {
+      throw new Error('Direct rooms cannot be public.');
+    }
+
     // Ensure creator is in memberIds
     const memberIds = Array.from(
       new Set([currentUser.id, ...params.memberIds]),
@@ -57,6 +64,7 @@ export class RoomService {
       createdAt: now,
       updatedAt: now,
       memberIds,
+      isPublic: params.isPublic ?? false,
       metadata: params.metadata,
     };
 
@@ -93,7 +101,7 @@ export class RoomService {
 
   async update(
     roomId: string,
-    updates: Partial<Pick<ChatRoom, 'name' | 'description' | 'imageUrl' | 'metadata'>>,
+    updates: Partial<Pick<ChatRoom, 'name' | 'description' | 'imageUrl' | 'isPublic' | 'metadata'>>,
   ): Promise<void> {
     await updateDoc(this.roomDoc(roomId), {
       ...updates,
@@ -145,7 +153,6 @@ export class RoomService {
   }
 
   async getMembers(roomId: string): Promise<RoomMember[]> {
-    const { getDocs } = await import('firebase/firestore');
     const snapshot = await getDocs(
       this.membersRef(roomId).withConverter(memberConverter),
     );
@@ -172,10 +179,83 @@ export class RoomService {
   }
 
   /**
+   * Fetch a paginated list of public rooms.
+   * Does NOT require the current user to be a member.
+   */
+  async listPublic(options?: PublicRoomListOptions): Promise<ChatRoom[]> {
+    const pageSize = options?.limit ?? 20;
+
+    const constraints: Parameters<typeof query>[1][] = [
+      where('isPublic', '==', true),
+      orderBy('updatedAt', 'desc'),
+      firestoreLimit(pageSize),
+    ];
+
+    if (options?.startAfter) {
+      constraints.push(firestoreStartAfter(Timestamp.fromDate(options.startAfter)));
+    }
+
+    const q = query(
+      this.roomsRef.withConverter(roomConverter),
+      ...constraints,
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => doc.data());
+  }
+
+  /**
+   * Subscribe to real-time updates of public rooms.
+   * Returns an unsubscribe function.
+   */
+  subscribePublic(
+    callback: (rooms: ChatRoom[]) => void,
+    options?: { limit?: number },
+  ): () => void {
+    const pageSize = options?.limit ?? 20;
+
+    const q = query(
+      this.roomsRef.withConverter(roomConverter),
+      where('isPublic', '==', true),
+      orderBy('updatedAt', 'desc'),
+      firestoreLimit(pageSize),
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const rooms = snapshot.docs.map((doc) => doc.data());
+      callback(rooms);
+    });
+  }
+
+  /**
+   * Join a public room. Throws if the room is not public or does not exist.
+   */
+  async join(roomId: string): Promise<ChatRoom> {
+    const currentUser = this.firechat.getCurrentUser();
+    const room = await this.get(roomId);
+
+    if (!room) {
+      throw new Error(`Room ${roomId} not found.`);
+    }
+
+    if (!room.isPublic) {
+      throw new Error(`Room ${roomId} is not public. Cannot join without invitation.`);
+    }
+
+    if (room.memberIds.includes(currentUser.id)) {
+      return room;
+    }
+
+    await this.addMembers(roomId, [currentUser.id]);
+    await this.firechat.adapter?.onMemberJoined?.(roomId, currentUser);
+
+    return { ...room, memberIds: [...room.memberIds, currentUser.id] };
+  }
+
+  /**
    * Find an existing direct chat room between current user and another user.
    */
   async findDirectRoom(otherUserId: string): Promise<ChatRoom | null> {
-    const { getDocs } = await import('firebase/firestore');
     const currentUser = this.firechat.getCurrentUser();
 
     const q = query(
