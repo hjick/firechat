@@ -18,6 +18,7 @@ import { MessageService } from './MessageService';
 import { TypingService } from './TypingService';
 import { ReadReceiptService } from './ReadReceiptService';
 import { PresenceService } from './PresenceService';
+import { UserResolverService } from './UserResolverService';
 
 export class FireChat {
   private static instance: FireChat | null = null;
@@ -35,6 +36,7 @@ export class FireChat {
   readonly typing: TypingService;
   readonly readReceipts: ReadReceiptService;
   readonly presence: PresenceService;
+  readonly users: UserResolverService | null;
 
   private currentUser: ChatUser | null = null;
   private authReady: Promise<void>;
@@ -59,6 +61,9 @@ export class FireChat {
     this.typing = new TypingService(this);
     this.readReceipts = new ReadReceiptService(this);
     this.presence = new PresenceService(this);
+    this.users = config.userResolver
+      ? new UserResolverService(this, config.userResolver)
+      : null;
   }
 
   static init(config: FireChatConfig): FireChat {
@@ -146,6 +151,7 @@ export class FireChat {
   destroy(): void {
     this.unsubscribeAuth?.();
     this.presence.destroy();
+    this.users?.clearCache();
     this.currentUser = null;
     FireChat.instance = null;
   }

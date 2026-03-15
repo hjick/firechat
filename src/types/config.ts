@@ -3,6 +3,9 @@ import type { ChatUser } from './user';
 import type { StorageAdapter } from './adapter';
 import type { FileUploader } from './uploader';
 
+/** Callback to resolve a userId to user profile (name, avatar, etc.) */
+export type UserResolver = (userId: string) => Promise<ChatUser>;
+
 export type AuthConfig =
   | { type: 'firebase' }
   | {
@@ -27,6 +30,8 @@ export interface FireChatOptions {
   pageSize?: number;
   /** Typing indicator timeout in ms. Default: 5000 */
   typingTimeout?: number;
+  /** User resolver cache TTL in milliseconds. Default: 300000 (5 minutes) */
+  userResolverCacheTTL?: number;
 }
 
 export interface FireChatConfig {
@@ -38,6 +43,8 @@ export interface FireChatConfig {
   adapter?: StorageAdapter;
   /** Optional file uploader for image/file message uploads */
   uploader?: FileUploader;
+  /** Optional callback to resolve userId to user profile (name, avatar). SDK caches results. */
+  userResolver?: UserResolver;
   /** Library options */
   options?: FireChatOptions;
 }
@@ -49,4 +56,5 @@ export const DEFAULT_OPTIONS: Required<FireChatOptions> = {
   enableReadReceipts: true,
   pageSize: 30,
   typingTimeout: 5000,
+  userResolverCacheTTL: 300000,
 };

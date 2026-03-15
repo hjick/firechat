@@ -39,3 +39,9 @@ export interface MessagePage {
   messages: Message[];
   hasMore: boolean;
 }
+
+/** Message enriched with resolved sender profile */
+export interface MessageWithSender extends Message {
+  /** Resolved sender profile. Only available when userResolver is configured. */
+  sender?: import('./user').ChatUser;
+}
