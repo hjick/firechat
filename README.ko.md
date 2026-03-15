@@ -13,6 +13,9 @@ Firebase 설정만으로 React / React Native 앱에 실시간 채팅 기능을 
 - **읽음 처리 & 안읽은 수** — 유저별 읽음 상태 추적
 - **유저 프레젠스** — Firebase RTDB 기반 온라인/오프라인 상태
 - **유연한 인증** — Firebase Auth, Custom Token (자체 백엔드), 비회원(익명) 모두 지원
+- **공개방** — 누구나 검색하고 참여할 수 있는 공개 채팅방
+- **이미지/파일 메시지** — 이미지/파일 전송, 플러그인 방식 `FileUploader` 지원
+- **유저 프로필 리졸버** — 메시지의 senderId를 DB의 이름/아바타로 매핑
 - **RDB 연동** — `StorageAdapter` 인터페이스로 MySQL, PostgreSQL 등과 동기화
 - **React Hooks** — `useChatRooms`, `useMessages`, `useTypingUsers` 등
 - **React Native 호환** — 웹과 모바일 모두 지원
@@ -49,6 +52,7 @@ appId             → 앱 ID
 | 컬렉션 | 필드 | 정렬 |
 |--------|------|------|
 | `{prefix}_rooms` | `memberIds` (배열 포함) + `updatedAt` (내림차순) | 내림차순 |
+| `{prefix}_rooms` | `isPublic` (오름차순) + `updatedAt` (내림차순) | 내림차순 |
 
 ## 아키텍처
 
@@ -246,6 +250,197 @@ FireChat.init({
 | `custom-token` | O (Custom Token) | **O** | **O** | **RDBMS 기반 서비스** |
 | `anonymous` | O (Anonymous) | X (랜덤) | 제한적 | 비회원 채팅, 데모 |
 
+## 공개방
+
+채팅방을 공개로 설정하면 인증된 모든 유저가 검색하고 참여할 수 있습니다.
+
+### 공개방 생성
+
+```typescript
+const room = await chat.rooms.create({
+  type: 'group',
+  name: '자유 채팅',
+  memberIds: [],
+  isPublic: true,
+});
+```
+
+### 공개방 조회 & 참여
+
+```typescript
+// 일회성 조회
+const publicRooms = await chat.rooms.listPublic({ limit: 20 });
+
+// 실시간 구독
+const unsubscribe = chat.rooms.subscribePublic((rooms) => {
+  console.log('공개방 목록:', rooms);
+}, { limit: 20 });
+
+// 공개방 참여
+await chat.rooms.join(roomId);
+```
+
+### React Hook
+
+```tsx
+import { usePublicRooms } from 'firechat-sdk';
+
+function PublicRoomList() {
+  const { rooms, loading } = usePublicRooms({ limit: 20 });
+  const { firechat } = useFireChat();
+
+  const handleJoin = async (roomId: string) => {
+    await firechat.rooms.join(roomId);
+  };
+
+  return (
+    <ul>
+      {rooms.map(room => (
+        <li key={room.id}>
+          {room.name} <button onClick={() => handleJoin(room.id)}>참여</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## 이미지/파일 메시지
+
+`type: 'image'`와 `type: 'file'` 메시지를 지원합니다.
+
+### URL로 전송 (RDBMS 유저)
+
+대부분의 유저는 자체 CDN/S3에 업로드 후 URL을 전달합니다:
+
+```typescript
+await chat.messages.send(roomId, {
+  type: 'image',
+  mediaUrl: 'https://my-cdn.com/photo.jpg',
+  thumbnailUrl: 'https://my-cdn.com/photo_thumb.jpg',
+  text: '사진입니다!',
+});
+
+await chat.messages.send(roomId, {
+  type: 'file',
+  mediaUrl: 'https://my-cdn.com/document.pdf',
+  fileName: 'document.pdf',
+  fileSize: 1024000,
+  mimeType: 'application/pdf',
+  text: '',
+});
+```
+
+### FileUploader로 전송 (Firebase Storage)
+
+Firebase Storage 유저를 위한 내장 업로더:
+
+```typescript
+import { FirebaseStorageUploader } from 'firechat-sdk';
+import { getStorage } from 'firebase/storage';
+
+const chat = FireChat.init({
+  firebaseApp: app,
+  auth: { type: 'firebase' },
+  uploader: new FirebaseStorageUploader(getStorage(app)),
+});
+
+// 업로드 + 전송을 한 번에
+await chat.messages.sendImage(roomId, {
+  file: imageFile, // 브라우저 File 또는 RN { uri }
+  text: '오늘 사진',
+  onProgress: (p) => console.log(`${p.progress}%`),
+});
+
+await chat.messages.sendFile(roomId, {
+  file: documentFile,
+  text: '회의 자료',
+});
+```
+
+### 커스텀 FileUploader
+
+자체 스토리지용 `FileUploader` 인터페이스 구현:
+
+```typescript
+import type { FileUploader } from 'firechat-sdk';
+
+const myUploader: FileUploader = {
+  async upload(file, path, onProgress) {
+    // CDN/S3에 업로드
+    return { url: '...', path, size: file.size, mimeType: file.type };
+  },
+  async delete(path) {
+    // 스토리지에서 삭제
+  },
+};
+```
+
+## 유저 프로필 리졸버
+
+메시지의 `senderId`를 DB의 유저 프로필(이름, 아바타)과 매핑합니다.
+
+### 설정
+
+```typescript
+const chat = FireChat.init({
+  firebaseApp: app,
+  auth: { type: 'custom-token', getToken, getUser },
+  userResolver: async (userId) => {
+    const res = await fetch(`/api/users/${userId}`);
+    return res.json(); // { id, displayName, avatarUrl }
+  },
+  options: {
+    userResolverCacheTTL: 300000, // 5분 캐시 (기본값)
+  },
+});
+```
+
+### 자동 sender 정보 주입
+
+`userResolver`가 설정되면 `useMessages()`가 자동으로 sender 프로필을 메시지에 추가합니다:
+
+```tsx
+function MessageBubble({ message }: { message: MessageWithSender }) {
+  return (
+    <div>
+      <img src={message.sender?.avatarUrl} />
+      <span>{message.sender?.displayName}</span>
+      <p>{message.text}</p>
+    </div>
+  );
+}
+```
+
+### 수동 조회
+
+```typescript
+// 단일 유저
+const user = await chat.users.resolve(userId);
+
+// 여러 유저
+const users = await chat.users.resolveMany([userId1, userId2]);
+
+// 캐시 조회 (동기)
+const cached = chat.users.getCached(userId);
+
+// 캐시 관리
+chat.users.invalidate(userId);
+chat.users.clearCache();
+```
+
+### React Hook
+
+```tsx
+import { useUser } from 'firechat-sdk';
+
+function UserAvatar({ userId }: { userId: string }) {
+  const { user, loading } = useUser(userId);
+  if (loading) return <span>...</span>;
+  return <img src={user?.avatarUrl} alt={user?.displayName} />;
+}
+```
+
 ## Firestore Security Rules
 
 운영 환경에서 권장하는 보안 규칙:
@@ -255,8 +450,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /firechat_rooms/{roomId} {
-      // 방 멤버만 읽기 가능
-      allow read: if request.auth.uid in resource.data.memberIds;
+      // 방 멤버 또는 공개방은 읽기 가능
+      allow read: if request.auth.uid in resource.data.memberIds
+        || resource.data.isPublic == true;
 
       // 인증된 유저면 방 생성 가능
       allow create: if request.auth != null;
@@ -350,6 +546,8 @@ FireChat.init({
   firebaseApp: app,
   auth: { type: 'custom-token', getToken, getUser },
   adapter,            // 선택
+  uploader,           // 선택 — 이미지/파일 업로드용 FileUploader
+  userResolver,       // 선택 — async (userId) => ChatUser
   options: {
     collectionPrefix: 'firechat',     // Firestore 컬렉션 접두어 (기본: 'firechat')
     enablePresence: false,            // 온라인/오프라인 추적 (기본: false)
@@ -357,6 +555,7 @@ FireChat.init({
     enableReadReceipts: true,         // 읽음 처리 (기본: true)
     pageSize: 30,                     // 페이지당 메시지 수 (기본: 30)
     typingTimeout: 5000,              // 타이핑 자동 해제 시간 ms (기본: 5000)
+    userResolverCacheTTL: 300000,     // 유저 프로필 캐시 TTL ms (기본: 300000)
   },
 });
 ```
@@ -372,6 +571,8 @@ FireChat.init({
 | `useTypingUsers(roomId)` | 타이핑 인디케이터 상태 및 제어 |
 | `useUnreadCount(roomId)` | 안읽은 메시지 수 |
 | `usePresence(userId)` | 유저 온라인/오프라인 상태 |
+| `usePublicRooms(options?)` | 실시간 공개방 목록 |
+| `useUser(userId)` | UserResolver로 유저 프로필 조회 |
 
 ## Core API (React 없이 사용)
 
@@ -396,6 +597,18 @@ await chat.typing.stopTyping(roomId);
 await chat.readReceipts.markAsRead(roomId);
 const count = await chat.readReceipts.getUnreadCount(roomId);
 
+// 공개방
+const publicRooms = await chat.rooms.listPublic({ limit: 20 });
+const unsubscribe = chat.rooms.subscribePublic((rooms) => { ... });
+await chat.rooms.join(publicRoomId);
+
+// 이미지/파일 메시지
+await chat.messages.sendImage(roomId, { file: imageFile });
+await chat.messages.sendFile(roomId, { file: documentFile });
+
+// 유저 리졸버
+const user = await chat.users?.resolve(userId);
+
 // 프레젠스
 chat.presence.subscribe(userId, ({ isOnline, lastSeenAt }) => { ... });
 
@@ -409,11 +622,13 @@ chat.destroy();
 {prefix}_rooms/{roomId}
   ├── type, name, createdBy, createdAt, updatedAt
   ├── memberIds: string[]
+  ├── isPublic: boolean
   ├── lastMessage: { text, senderId, sentAt, type }
   ├── typingUserIds: string[]
   │
   ├── /messages/{messageId}
-  │     └── senderId, type, text, createdAt, status, replyTo, ...
+  │     └── senderId, type, text, mediaUrl, thumbnailUrl,
+  │         fileName, fileSize, mimeType, createdAt, status, replyTo, ...
   │
   └── /members/{userId}
         └── role, joinedAt, lastReadAt

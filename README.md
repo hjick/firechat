@@ -14,6 +14,9 @@ Add real-time chat to any React or React Native app with just a Firebase config.
 - **User Presence** — Online/offline status via Firebase RTDB
 - **Flexible Auth** — Firebase Auth, Custom Token (for your own backend), or anonymous guests
 - **RDB Sync** — `StorageAdapter` interface for syncing with MySQL, PostgreSQL, etc.
+- **Public Rooms** — Create public rooms that anyone can discover and join
+- **Image & File Messages** — Send images/files with optional upload via pluggable `FileUploader`
+- **User Profile Resolver** — Map sender IDs to display names and avatars from your database
 - **React Hooks** — `useChatRooms`, `useMessages`, `useTypingUsers`, and more
 - **React Native Compatible** — Works with both React and React Native
 
@@ -49,6 +52,7 @@ appId             → Your app ID
 | Collection | Fields | Order |
 |------------|--------|-------|
 | `{prefix}_rooms` | `memberIds` (Array contains) + `updatedAt` (Descending) | Descending |
+| `{prefix}_rooms` | `isPublic` (Ascending) + `updatedAt` (Descending) | Descending |
 
 ## Architecture
 
@@ -246,6 +250,197 @@ FireChat.init({
 | `custom-token` | Yes (Custom Token) | **Yes** | **Yes** | **RDBMS-based services** |
 | `anonymous` | Yes (Anonymous) | No (random) | Limited | Guest chat, demos |
 
+## Public Rooms
+
+Rooms can be marked as public so that any authenticated user can discover and join them.
+
+### Creating a Public Room
+
+```typescript
+const room = await chat.rooms.create({
+  type: 'group',
+  name: 'General Chat',
+  memberIds: [],
+  isPublic: true,
+});
+```
+
+### Browsing & Joining Public Rooms
+
+```typescript
+// One-time fetch
+const publicRooms = await chat.rooms.listPublic({ limit: 20 });
+
+// Real-time subscription
+const unsubscribe = chat.rooms.subscribePublic((rooms) => {
+  console.log('Public rooms:', rooms);
+}, { limit: 20 });
+
+// Join a public room
+await chat.rooms.join(roomId);
+```
+
+### React Hook
+
+```tsx
+import { usePublicRooms } from 'firechat-sdk';
+
+function PublicRoomList() {
+  const { rooms, loading } = usePublicRooms({ limit: 20 });
+  const { firechat } = useFireChat();
+
+  const handleJoin = async (roomId: string) => {
+    await firechat.rooms.join(roomId);
+  };
+
+  return (
+    <ul>
+      {rooms.map(room => (
+        <li key={room.id}>
+          {room.name} <button onClick={() => handleJoin(room.id)}>Join</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Image & File Messages
+
+Messages support `type: 'image'` and `type: 'file'` with media URLs.
+
+### Sending with URL (RDBMS users)
+
+Most users will upload files to their own CDN/S3 and pass the URL:
+
+```typescript
+await chat.messages.send(roomId, {
+  type: 'image',
+  mediaUrl: 'https://my-cdn.com/photo.jpg',
+  thumbnailUrl: 'https://my-cdn.com/photo_thumb.jpg',
+  text: 'Check this out!',
+});
+
+await chat.messages.send(roomId, {
+  type: 'file',
+  mediaUrl: 'https://my-cdn.com/document.pdf',
+  fileName: 'document.pdf',
+  fileSize: 1024000,
+  mimeType: 'application/pdf',
+  text: '',
+});
+```
+
+### Sending with FileUploader (Firebase Storage)
+
+For Firebase Storage users, the SDK provides a built-in uploader:
+
+```typescript
+import { FirebaseStorageUploader } from 'firechat-sdk';
+import { getStorage } from 'firebase/storage';
+
+const chat = FireChat.init({
+  firebaseApp: app,
+  auth: { type: 'firebase' },
+  uploader: new FirebaseStorageUploader(getStorage(app)),
+});
+
+// Upload and send in one call
+await chat.messages.sendImage(roomId, {
+  file: imageFile, // browser File or RN { uri }
+  text: 'Photo from today',
+  onProgress: (p) => console.log(`${p.progress}%`),
+});
+
+await chat.messages.sendFile(roomId, {
+  file: documentFile,
+  text: 'Meeting notes',
+});
+```
+
+### Custom FileUploader
+
+Implement the `FileUploader` interface for your own storage:
+
+```typescript
+import type { FileUploader } from 'firechat-sdk';
+
+const myUploader: FileUploader = {
+  async upload(file, path, onProgress) {
+    // Upload to your CDN/S3
+    return { url: '...', path, size: file.size, mimeType: file.type };
+  },
+  async delete(path) {
+    // Delete from your storage
+  },
+};
+```
+
+## User Profile Resolver
+
+Map message `senderId` to user profiles (display name, avatar) from your database.
+
+### Setup
+
+```typescript
+const chat = FireChat.init({
+  firebaseApp: app,
+  auth: { type: 'custom-token', getToken, getUser },
+  userResolver: async (userId) => {
+    const res = await fetch(`/api/users/${userId}`);
+    return res.json(); // { id, displayName, avatarUrl }
+  },
+  options: {
+    userResolverCacheTTL: 300000, // 5 min cache (default)
+  },
+});
+```
+
+### Automatic sender enrichment
+
+When `userResolver` is configured, `useMessages()` automatically enriches messages with sender profiles:
+
+```tsx
+function MessageBubble({ message }: { message: MessageWithSender }) {
+  return (
+    <div>
+      <img src={message.sender?.avatarUrl} />
+      <span>{message.sender?.displayName}</span>
+      <p>{message.text}</p>
+    </div>
+  );
+}
+```
+
+### Manual resolution
+
+```typescript
+// Single user
+const user = await chat.users.resolve(userId);
+
+// Multiple users
+const users = await chat.users.resolveMany([userId1, userId2]);
+
+// Cached (synchronous)
+const cached = chat.users.getCached(userId);
+
+// Cache management
+chat.users.invalidate(userId);
+chat.users.clearCache();
+```
+
+### React Hook
+
+```tsx
+import { useUser } from 'firechat-sdk';
+
+function UserAvatar({ userId }: { userId: string }) {
+  const { user, loading } = useUser(userId);
+  if (loading) return <span>...</span>;
+  return <img src={user?.avatarUrl} alt={user?.displayName} />;
+}
+```
+
 ## Firestore Security Rules
 
 Recommended security rules for production:
@@ -255,8 +450,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /firechat_rooms/{roomId} {
-      // Only room members can read the room
-      allow read: if request.auth.uid in resource.data.memberIds;
+      // Room members or public room viewers can read
+      allow read: if request.auth.uid in resource.data.memberIds
+        || resource.data.isPublic == true;
 
       // Any authenticated user can create a room
       allow create: if request.auth != null;
@@ -350,6 +546,8 @@ FireChat.init({
   firebaseApp: app,
   auth: { type: 'custom-token', getToken, getUser },
   adapter,            // optional
+  uploader,           // optional — FileUploader for image/file uploads
+  userResolver,       // optional — async (userId) => ChatUser
   options: {
     collectionPrefix: 'firechat',     // Firestore collection prefix (default: 'firechat')
     enablePresence: false,            // Enable online/offline tracking (default: false)
@@ -357,6 +555,7 @@ FireChat.init({
     enableReadReceipts: true,         // Enable read receipts (default: true)
     pageSize: 30,                     // Messages per page (default: 30)
     typingTimeout: 5000,              // Auto-stop typing after ms (default: 5000)
+    userResolverCacheTTL: 300000,     // User profile cache TTL in ms (default: 300000)
   },
 });
 ```
@@ -372,6 +571,8 @@ FireChat.init({
 | `useTypingUsers(roomId)` | Typing indicator state and controls |
 | `useUnreadCount(roomId)` | Unread message count |
 | `usePresence(userId)` | User online/offline status |
+| `usePublicRooms(options?)` | Real-time list of public rooms |
+| `useUser(userId)` | Resolve user profile from UserResolver |
 
 ## Core API (without React)
 
@@ -383,10 +584,22 @@ const room = await chat.rooms.create({ type: 'direct', memberIds: ['user-2'] });
 const room = await chat.rooms.getOrCreateDirect('user-2');
 const unsubscribe = chat.rooms.subscribe((rooms) => console.log(rooms));
 
+// Public Rooms
+const publicRooms = await chat.rooms.listPublic({ limit: 20 });
+const unsubscribe = chat.rooms.subscribePublic((rooms) => { ... });
+await chat.rooms.join(publicRoomId);
+
 // Messages
 const msg = await chat.messages.send(roomId, { type: 'text', text: 'Hello!' });
 const { messages, hasMore } = await chat.messages.fetch(roomId);
 const unsubscribe = chat.messages.subscribe(roomId, (newMsgs) => { ... });
+
+// Image / File messages
+await chat.messages.sendImage(roomId, { file: imageFile });
+await chat.messages.sendFile(roomId, { file: documentFile });
+
+// User Resolver
+const user = await chat.users?.resolve(userId);
 
 // Typing
 await chat.typing.startTyping(roomId);
@@ -409,11 +622,13 @@ chat.destroy();
 {prefix}_rooms/{roomId}
   ├── type, name, createdBy, createdAt, updatedAt
   ├── memberIds: string[]
+  ├── isPublic: boolean
   ├── lastMessage: { text, senderId, sentAt, type }
   ├── typingUserIds: string[]
   │
   ├── /messages/{messageId}
-  │     └── senderId, type, text, createdAt, status, replyTo, ...
+  │     └── senderId, type, text, mediaUrl, thumbnailUrl,
+  │         fileName, fileSize, mimeType, createdAt, status, replyTo, ...
   │
   └── /members/{userId}
         └── role, joinedAt, lastReadAt
